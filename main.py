@@ -96,7 +96,7 @@ class Motors:
                     radians -= math.pi
                 if forward < 0 and right > 0:
                     radians += math.pi
-            lengthOfArc = 4.65 * radians          #10 inches is the diameter between wheels of the robot, 5 inches is the radius
+            lengthOfArc = 4.5518 * radians          #10 inches is the diameter between wheels of the robot, 5 inches is the radius   #Changed to 4.5518 as it seems to be more accurate, possibly because the back motors are pushing it forward as well.
             Turns = lengthOfArc/12.566        #12.566 is the circumference of the wheels
             degree = Turns * 360
             self.MotorsDSpin(degree, 20, MoveToDirection)
@@ -118,8 +118,8 @@ class Motors:
 
 drive_train = Motors()
 
-drive_train.Turn("counterclockwise", 90, 5)
+
 
 while True:
-    drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis4.position()/2))
-    drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis4.position()/2))
+    drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis1.position()/2))
+    drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis1.position()/2))
