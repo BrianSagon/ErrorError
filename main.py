@@ -121,5 +121,6 @@ drive_train = Motors()
 
 
 while True:
-    drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis1.position()/2))
-    drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis1.position()/2))
+    drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
+    drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
+   
