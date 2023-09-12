@@ -51,6 +51,7 @@ class Motors:
             self.front_left=Motor(Ports.PORT12, GearSetting.RATIO_18_1, False)
             self.back_right=Motor(Ports.PORT20, GearSetting.RATIO_18_1, True)
             self.front_right=Motor(Ports.PORT19, GearSetting.RATIO_18_1, True)
+            self.intake=Motor(Ports.PORT17, GearSetting.RATIO_18_1, False)
 
         def LeftMotorsVSpin(self, velocity):
             self.back_left.spin(FORWARD, velocity, PERCENT)
@@ -113,6 +114,9 @@ class Motors:
             self.front_left.spin_to_position(-degree_amount * d[clockdirection], DEGREES, speed, PERCENT, False)
             self.front_right.spin_to_position(degree_amount * d[clockdirection], DEGREES, speed, PERCENT, False)
             self.back_right.spin_to_position(degree_amount  * d[clockdirection], DEGREES, speed, PERCENT, True)
+        
+        def Intake(self):
+            self.intake.spin(FORWARD)
                 
                 
 
@@ -123,4 +127,6 @@ drive_train = Motors()
 while True:
     drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
     drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
+    if controller1.buttonR2.pressing():
+        drive_train.Intake()
    
