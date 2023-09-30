@@ -46,7 +46,6 @@ d["still"]["left"] = 0
 d["clockwise"] = -1
 d["counterclockwise"] = 1
 class Motors:
-        CatapultPrimed = False
         def __init__(self):
             self.back_left=Motor(Ports.PORT11, GearSetting.RATIO_18_1, False)
             self.front_left=Motor(Ports.PORT12, GearSetting.RATIO_18_1, False)
@@ -125,12 +124,12 @@ class Motors:
 
         def PositionCatapult(self, velocity):
             self.catapult.set_max_torque(4, PERCENT)
-            self.catapult.spin(FORWARD, velocity, PERCENT)
-            wait(1, SECONDS)
+            self.catapult.spin(FORWARD, velocity, PERCENT)             #Change this to run until the motor experiences a ton of torque
+            wait(.3, SECONDS)
             self.catapult.stop(COAST)
             wait(.2, SECONDS)
             self.catapult.set_max_torque(100, PERCENT)
-            brain.screen.print("line131")
+            brain.screen.print("line132")
 
         def PrimeCatapult(self):
             self.catapult.set_position(0, DEGREES)
@@ -140,14 +139,35 @@ class Motors:
         def LaunchCatapult(self):
             self.catapult.set_position(0, DEGREES)
             self.catapult.spin_to_position(40, DEGREES, 100, PERCENT)
-            self.PositionCatapult(100)
-            if self.CatapultPrimed == True:
-                self.PrimeCatapult()
-                brain.screen.print("Repriming!")
         
-        def PrimedIsTrue(self):
-            self.CatapultPrimed = True
-            brain.screen.print("Catapult Is Primed!!!!")
+        def UnprimeCatapult(self):
+            self.catapult.set_position(0, DEGREES)
+            self.catapult.spin_to_position(-170, DEGREES, 100, PERCENT)
+            self.PositionCatapult
+        
+        def CatapultNotPrimed(self):
+            wait(.2, SECONDS)
+            while True:
+                if controller1.buttonA.pressing == True:
+                    self.PrimeCatapult
+                    Thread(self.CatapultIsPrimed)
+                    exit()
+                sleep(10)
+            
+        def CatapultIsPrimed(self):
+            wait(.2, SECONDS)
+            while True:
+                if controller1.buttonA.pressing == True:
+                    self.UnprimeCatapult
+                    Thread(self.CatapultNotPrimed)
+                    exit()
+                if controller1.buttonB.pressing == True:
+                    self.LaunchCatapult
+                    self.PositionCatapult
+                    self.PrimeCatapult
+
+                
+
         
         
             
@@ -161,8 +181,6 @@ drive_train = Motors()
 #Main
 drive_train.PositionCatapult(100)
 Thread(drive_train.Drive)
-if drive_train.CatapultPrimed == False: 
-    controller1.buttonA.pressed(drive_train.PrimedIsTrue)
-    controller1.buttonA.pressed(drive_train.PrimeCatapult)
+Thread(drive_train.CatapultNotPrimed)
 
     
