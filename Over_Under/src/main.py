@@ -117,57 +117,61 @@ class Motors:
         
         def Drive(self):
             while True:
-                if controller1.axis3.position() > .05:
-                    drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
-                    drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
-                sleep(10)
+                drive_train.LeftMotorsVSpin(controller1.axis3.position()+(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
+                drive_train.RightMotorsVSpin(controller1.axis3.position()-(controller1.axis1.position()/(1+abs(controller1.axis3.position()/100))))
+                sleep(5)
 
         def PositionCatapult(self, velocity):
+            brain.screen.print("Line 125")
             self.catapult.set_max_torque(4, PERCENT)
             self.catapult.spin(FORWARD, velocity, PERCENT)             #Change this to run until the motor experiences a ton of torque
-            wait(.3, SECONDS)
+            wait(.4, SECONDS)
             self.catapult.stop(COAST)
             wait(.2, SECONDS)
             self.catapult.set_max_torque(100, PERCENT)
-            brain.screen.print("line132")
 
         def PrimeCatapult(self):
+            brain.screen.print("line 134")
             self.catapult.set_position(0, DEGREES)
-            self.catapult.spin_to_position(90, DEGREES, 100, PERCENT)
+            self.catapult.spin_to_position(180, DEGREES, 100, PERCENT, True)
             controller1.buttonB.pressed(self.LaunchCatapult)
 
         def LaunchCatapult(self):
             self.catapult.set_position(0, DEGREES)
-            self.catapult.spin_to_position(40, DEGREES, 100, PERCENT)
+            self.catapult.spin_to_position(60, DEGREES, 100, PERCENT)
         
         def UnprimeCatapult(self):
             self.catapult.set_position(0, DEGREES)
-            self.catapult.spin_to_position(-170, DEGREES, 100, PERCENT)
+            self.catapult.spin_to_position(-160, DEGREES, 100, PERCENT)
             self.PositionCatapult
         
         def CatapultNotPrimed(self):
             wait(.2, SECONDS)
             while True:
-                if controller1.buttonA.pressing == True:
-                    self.PrimeCatapult
+                if controller1.buttonA.pressing() == True:
+                    brain.screen.print("Line 152")
+                    self.PrimeCatapult()
+                    #wait(.2, SECONDS)
                     Thread(self.CatapultIsPrimed)
-                    exit()
+                    break
                 sleep(10)
             
         def CatapultIsPrimed(self):
             wait(.2, SECONDS)
+            brain.screen.clear_screen()
+            brain.screen.print("CatapultIsPrimed Thread IS On")
             while True:
-                if controller1.buttonA.pressing == True:
-                    self.UnprimeCatapult
+                if controller1.buttonA.pressing() == True:
+                    self.UnprimeCatapult()
                     Thread(self.CatapultNotPrimed)
-                    exit()
-                if controller1.buttonB.pressing == True:
-                    self.LaunchCatapult
-                    self.PositionCatapult
-                    self.PrimeCatapult
+                    break
+                if controller1.buttonB.pressing() == True:
+                    self.LaunchCatapult()
+                    self.PositionCatapult(100)
+                    self.PrimeCatapult()
+                sleep(10)
 
                 
-
         
         
             
@@ -179,6 +183,7 @@ drive_train = Motors()
 
 
 #Main
+def 
 drive_train.PositionCatapult(100)
 Thread(drive_train.Drive)
 Thread(drive_train.CatapultNotPrimed)
