@@ -8,7 +8,7 @@ brain=Brain()
 # Robot configuration code
 controller1 = Controller(PRIMARY)
 direction = "normal"
-
+wingsenabled = False
 # wait for rotation sensor to fully initialize
 wait(30, MSEC)
 #endregion VEXcode Generated Robot Configuration
@@ -27,6 +27,9 @@ import math
 # Begin project code
 
 d = {}
+d["direction"] = {}
+d["direction"]["forward"] = 1
+d["direction"]["backwards"] = -1
 d["forward"] = {}
 d["forward"]["right"] = 1
 d["forward"]["left"] = 1
@@ -53,7 +56,8 @@ class Motors:
             self.front_left=Motor(Ports.PORT19, GearSetting.RATIO_18_1, False)
             self.back_right=Motor(Ports.PORT11, GearSetting.RATIO_18_1, True)
             self.front_right=Motor(Ports.PORT12, GearSetting.RATIO_18_1, True)
-            self.puncher=Motor(Ports.PORT4,GearSetting.RATIO_36_1, False)
+            self.puncher=Motor(Ports.PORT4, GearSetting.RATIO_36_1, False)
+            self.rightwing=Motor(Ports.PORT15, GearSetting.RATIO_36_1, True)
 
         def LeftMotorsVSpin(self, velocity):
             self.back_left.spin(FORWARD, velocity, PERCENT)
@@ -73,7 +77,13 @@ class Motors:
             self.front_right.spin_to_position(degree_amount * d[direction]["right"], DEGREES, speed, PERCENT, False)
             self.back_right.spin_to_position(degree_amount  * d[direction]["right"], DEGREES, speed, PERCENT, True)    #True since it is the last one to be called, activating it and the other spin_to's next that have been activated
 
-        def MoveTo(self, forward, right):
+        def MotorsStop(self):
+            self.front_left.stop()
+            self.back_left.stop()
+            self.front_right.stop()
+            self.back_right.stop()
+
+        def MoveTo(self, forward, right, direction):
             MoveToDirection = "still"
             if right == 0:
                 if forward > 0:
@@ -86,19 +96,19 @@ class Motors:
                 MoveToDirection = "right"
 
             length = math.sqrt((forward ** 2) + (right ** 2))
-    
+
             radians = 0
             if forward == 0:                 #I'm not adding a check for if both are zero, as that should never happen
                 if right < 0:                  #this is all the calculation for the amount of radians that the robot needs to turn
-                    radians = 1.57079
+                    radians = 1.57079 * d[direction]
                 if right > 0:
-                    radians = -1.57079
+                    radians = -1.57079 * d[direction]
             else:
                 radians = (math.atan(right/forward))
                 if forward < 0 and right < 0:
-                    radians -= math.pi
+                    radians -= math.pi * d[direction]
                 if forward < 0 and right > 0:
-                    radians += math.pi
+                    radians += math.pi * d[direction]
             lengthOfArc = 4.5518 * radians          #10 inches is the diameter between wheels of the robot, 5 inches is the radius   #Changed to 4.5518 as it seems to be more accurate, possibly because the back motors are pushing it forward as well.
             Turns = lengthOfArc/12.566        #12.566 is the circumference of the wheels
             degree = Turns * 360
@@ -106,7 +116,7 @@ class Motors:
 
             Turns = (length*12)/12.566          #length is multiplied by 12 so that it is defined in feet rather than inches; the 12.566 is also in inches so multiplying it by 12 cancels them into feet
             degree = Turns * 360
-            self.MotorsDSpin(degree, 100, "forward")      #The direction here should always be forward since it is facing its target
+            self.MotorsDSpin(degree * direction, 100, "forward")      #The direction here should always be forward since it is facing its target
 
         def Turn(self, clockdirection, degrees, speed):
             ArcPercentage = degrees/360                   #Percentage of the total arc length of the robot spinning 360 degrees
@@ -185,6 +195,31 @@ class Motors:
         def SpinPuncher(self):
             self.puncher.set_position(0, DEGREES)
             self.puncher.spin_to_position(360, DEGREES, 100, PERCENT, True)
+
+        def Wings(self):
+            self.rightwing.set_position(0, DEGREES)
+            controller1.buttonUp.pressed(self.EnableWings)
+            controller1.buttonDown.pressed(self.DisableWings)
+        
+        def EnableWings(self):
+            global wingsenabled
+            wingsenabled = True
+            self.rightwing.spin_to_position(-90, DEGREES, 100, PERCENT, True)
+            while wingsenabled == True:
+                self.rightwing.stop(BRAKE)
+                brain.screen.print("TRUEEEEE")
+                if abs(abs(self.rightwing.position()) - 90) > 5:
+                    self.rightwing.spin_to_position(-90, DEGREES)
+
+        def DisableWings(self):
+            global wingsenabled
+            wingsenabled = False
+            self.rightwing.spin_to_position(0, DEGREES, 100, PERCENT, True)
+            while wingsenabled == False:
+                self.rightwing.stop(BRAKE)
+                brain.screen.print("FALLSEE")
+                if abs(self.rightwing.position()) > 5:
+                    self.rightwing.spin_to_position(0, DEGREES)
             
 
 class Game():
@@ -192,9 +227,22 @@ class Game():
             brain.screen.print("line 169")
             self.NotPrimedThread = Thread(drive_train.Puncher)
             self.DrivingThread = Thread(drive_train.Drive)
+            self.WingsThread = Thread(drive_train.Wings)
             controller1.buttonL2.pressed(drive_train.ChangeDriveDirection)
         def autonomous(self):
-            drive_train.puncher.spin_to_position(360, DEGREES, 100, PERCENT)
+            drive_train.MoveTo(2.71, 0, "normal")
+            drive_train.Turn("counterclockwise", 45, 50)
+            for x in [1, 2, 3]:
+                drive_train.LeftMotorsVSpin(100)
+                drive_train.RightMotorsVSpin(100)
+                wait(.6, SECONDS)
+                drive_train.MotorsStop()
+                drive_train.LeftMotorsVSpin(100)
+                drive_train.RightMotorsVSpin(100)
+                wait(.4, SECONDS)
+                drive_train.MotorsStop()
+
+
 
 drive_train = Motors()
 game = Game()
@@ -202,5 +250,5 @@ game = Game()
 
 
 #Main
-
+game.autonomous()
 competition = Competition(game.driverControl, game.autonomous)
