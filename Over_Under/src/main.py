@@ -58,7 +58,8 @@ class Motors:
             self.front_right=Motor(Ports.PORT14, GearSetting.RATIO_18_1, True)
             self.right_puncher=Motor(Ports.PORT4, GearSetting.RATIO_36_1, False)
             self.left_puncher=Motor(Ports.PORT7, GearSetting.RATIO_36_1, True)
-            self.right_wing=Motor(Ports.PORT15, GearSetting.RATIO_36_1, True)
+            self.left_wing=DigitalOut(brain.three_wire_port.h)
+            self.right_wing=DigitalOut(brain.three_wire_port.g)
             self.puncher_group = MotorGroup(self.right_puncher, self.left_puncher)
 
         def LeftMotorsVSpin(self, velocity):
@@ -135,9 +136,7 @@ class Motors:
             self.front_right.spin_to_position(degree_amount * d[clockdirection], DEGREES, speed, PERCENT, False)
             self.back_right.spin_to_position(degree_amount  * d[clockdirection], DEGREES, speed, PERCENT, True)
         
-        def Drive(self):
-            brain.screen.print("DriveThread")
-            
+        def Drive(self):            
             while True:
                 drive_train.LeftMotorsVSpin((controller1.axis3.position()+(d[direction]*(controller1.axis1.position() * .7)/(1+abs(controller1.axis3.position()/100))))*d[direction])
                 drive_train.RightMotorsVSpin((controller1.axis3.position()-(d[direction]*(controller1.axis1.position() * .7)/(1+abs(controller1.axis3.position()/100))))*d[direction])
@@ -151,7 +150,7 @@ class Motors:
                 direction = "reversed"
             else:
                 direction = "normal"
-
+        '''
         def PositionPuncher(self):
             brain.screen.print("Line 127")
             self.puncher_group.set_max_torque(2, PERCENT)
@@ -173,7 +172,7 @@ class Motors:
         def UnprimeCatapult(self):
             self.puncher_group.set_position(0, DEGREES)
             self.puncher_group.spin_to_position(-250, DEGREES, 100, PERCENT)
-        
+
         def PuncherNotPrimed(self):
             brain.screen.print("line150")
             while True:
@@ -197,57 +196,41 @@ class Motors:
                     self.PrimePuncher()
                 wait(5, MSEC)
 
+                #All Leftover from earlier version ^
+        '''        
         def Puncher(self):
             while True:
                 if controller1.buttonA.pressing() == True:
-                    self.puncher_group.set_position(0, DEGREES)
-                    self.puncher_group.spin_to_position(360, DEGREES, 100, PERCENT, True)
+                    self.SpinPuncher()
 
         def SpinPuncher(self):
             self.puncher_group.set_position(0, DEGREES)
             self.puncher_group.spin_to_position(360, DEGREES, 100, PERCENT, True)
 
         def Wings(self):
-            self.right_wing.set_position(0, DEGREES)
             controller1.buttonUp.pressed(self.EnableWings)
             controller1.buttonDown.pressed(self.DisableWings)
         
         def EnableWings(self):
-            global wingsenabled
-            wingsenabled = True
-            self.right_wing.spin_to_position(-90, DEGREES, 100, PERCENT, True)
-            while wingsenabled == True:
-                self.right_wing.stop(BRAKE)
-                brain.screen.print("TRUEEEEE")
-                if abs(abs(self.right_wing.position()) - 90) > 5:
-                    self.right_wing.spin_to_position(-90, DEGREES)
+            self.left_wing.set(True)
+            self.right_wing.set(True)
 
         def DisableWings(self):
-            global wingsenabled
-            wingsenabled = False
-            self.right_wing.spin_to_position(0, DEGREES, 100, PERCENT, True)
-            while wingsenabled == False:
-                self.right_wing.stop(BRAKE)
-                brain.screen.print("FALLSEE")
-                if abs(self.right_wing.position()) > 5:
-                    self.right_wing.spin_to_position(0, DEGREES)
+            self.left_wing.set(False)
+            self.right_wing.set(False)
+            
             
 
 class Game():
         def driverControl(self):
-            brain.screen.print("line 169")
-            self.NotPrimedThread = Thread(drive_train.Puncher)
+            drive_train.DisableWings()
+            self.PuncherThread = Thread(drive_train.Puncher)
             self.DrivingThread = Thread(drive_train.Drive)
-            #self.WingsThread = Thread(drive_train.Wings)
+            self.WingsThread = Thread(drive_train.Wings)
             controller1.buttonL2.pressed(drive_train.ChangeDriveDirection)
         def autonomous(self):
-            #drive_train.SpinPuncher()
-            drive_train.LeftMotorsVSpin(100)
-            drive_train.RightMotorsVSpin(100)
-            wait(2, SECONDS)
-            drive_train.LeftMotorsVSpin(-100)
-            drive_train.RightMotorsVSpin(-100)
-            wait(.5, SECONDS)
+            drive_train.DisableWings()
+            drive_train.SpinPuncher()
             drive_train.MotorsBrake()
             #drive_train.Turn("clockwise", 30, 100)
             #drive_train.MoveTo(3.92, 0, "normal")
@@ -261,4 +244,4 @@ game = Game()
 
 #Main
 competition = Competition(game.driverControl, game.autonomous)
-
+game.driverControl()
