@@ -12,7 +12,7 @@ wingsenabled = False
 MotorsStuck = False
 kP = .35
 kI = 0
-kD = 2.5
+kD = 0
 # wait for rotation sensor to fully initialize
 wait(30, MSEC)
 #endregion VEXcode Generated Robot Configuration
@@ -43,14 +43,11 @@ d["back"]["left"] = 1
 d["right"] = {}
 d["right"]["right"] = -1
 d["right"]["left"] = 1
+d["right"]["forward"] = 1
 d["left"] = {}
 d["left"]["right"] = 1
 d["left"]["left"] = -1
-d["still"] = {}
-d["still"]["right"] = 0
-d["still"]["left"] = 0
-d["clockwise"] = -1
-d["counterclockwise"] = 1
+d["left"]["forward"] = 1
 d["normal"] = 1
 d["reversed"] = -1
 
@@ -79,6 +76,18 @@ class Motors:
             self.LeftMotorsVSpin(velocity)
             wait(time, SECONDS)
             self.MotorsBrake()
+
+        def RightMotorsDSpin(self, degree_amount, speed, direction):
+            self.front_right.set_position(0, DEGREES)
+            self.back_right.set_position(0, DEGREES)
+            self.front_right.spin_to_position(degree_amount * d[direction]["right"], DEGREES, speed, PERCENT, False)
+            self.back_right.spin_to_position(degree_amount  * d[direction]["right"], DEGREES, speed, PERCENT, True)
+
+        def LeftMotorsDSpin(self, degree_amount, speed, direction):
+            self.front_left.set_position(0, DEGREES)
+            self.back_left.set_position(0, DEGREES)
+            self.back_left.spin_to_position(degree_amount * d[direction]["left"], DEGREES, speed, PERCENT, False)
+            self.front_left.spin_to_position(degree_amount * d[direction]["left"], DEGREES, speed, PERCENT, True)
 
         def MotorsDSpin(self, degree_amount, speed, direction):
             self.front_right.set_position(0, DEGREES)
@@ -126,20 +135,20 @@ class Motors:
                 delta_seconds = time.time()-initial_seconds
                 error = target-self.front_left.position()
                 if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
-                    drive_train.MotorsBrake()
-                    break
+                    if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
+                        drive_train.MotorsBrake()
+                        break
                 integral = integral + error
                 if error <= target:
                     integral = 0
-                if error > 100000:    # This number is supposed to be "useful range"
-                    integral = 0
+                difference = prevError - error
+                if error > 1500:    # This number is supposed to be "useful range"
+                    error = 1500
+                    prevError = error + difference
                 derivative = error - prevError
                 prevError = error
                 if i < 80:
                     i += 1
-                    brain.screen.clear_screen()
-                    brain.screen.set_cursor(1,1)
-                    brain.screen.print(i)
                 power = error * kP + integral * kI + derivative * kD
                 self.front_left.spin(FORWARD, power*(i/80), PERCENT)
                 wait(20, MSEC)
@@ -158,13 +167,16 @@ class Motors:
                 delta_seconds = time.time()-initial_seconds
                 error = target-self.front_right.position()
                 if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
-                    drive_train.MotorsBrake()
-                    break
+                    if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
+                        drive_train.MotorsBrake()
+                        break
                 integral = integral + error
                 if error <= target:
                     integral = 0
-                if error > 100000:    # This number is supposed to be "useful range"
-                    integral = 0
+                difference = prevError - error
+                if error > 1500:    # This number is supposed to be "useful range"
+                    error = 1500
+                    prevError = error + difference
                 derivative = error - prevError
                 prevError = error
                 power = error * kP + integral * kI + derivative * kD
@@ -187,13 +199,16 @@ class Motors:
                 delta_seconds = time.time()-initial_seconds
                 error = target-self.back_left.position()
                 if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
-                    drive_train.MotorsBrake()
-                    break
+                    if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
+                        drive_train.MotorsBrake()
+                        break
                 integral = integral + error
                 if error <= target:
                     integral = 0
-                if error > 100000:    # This number is supposed to be "useful range"
-                    integral = 0
+                difference = prevError - error
+                if error > 1500:    # This number is supposed to be "useful range"
+                    error = 1500
+                    prevError = error + difference
                 derivative = error - prevError
                 prevError = error
                 power = error * kP + integral * kI + derivative * kD
@@ -216,13 +231,16 @@ class Motors:
                 delta_seconds = time.time()-initial_seconds
                 error = target-self.back_right.position()
                 if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
-                    drive_train.MotorsBrake()
-                    break
+                    if (delta_seconds > 1 and derivative == 0) or delta_seconds > 4:
+                        drive_train.MotorsBrake()
+                        break
                 integral = integral + error
                 if error <= target:
                     integral = 0
-                if error > 100000:    # This number is supposed to be "useful range"
-                    integral = 0
+                difference = prevError - error
+                if error > 1500:    # This number is supposed to be "useful range", 1500 degrees seems right
+                    error = 1500
+                    prevError = error + difference       #ensures that the derivative isn't an insane number because of a jump in the difference
                 derivative = error - prevError
                 prevError = error
                 power = error * kP + integral * kI + derivative * kD
@@ -232,44 +250,40 @@ class Motors:
                 wait(20, MSEC)
 
         def MoveTo(self, forward, right, direction):
-            MoveToDirection = "still"
-            if right == 0:
-                if forward > 0:
-                    MoveToDirection = "forward"
-                elif forward < 0:
-                    MoveToDirection = "right"
-            elif right < 0:
-                MoveToDirection = "left"
-            elif right > 0:
-                MoveToDirection = "right"
-
+            turn_direction = "forward"
+            
             length = math.sqrt((forward ** 2) + (right ** 2))
 
             radians = 0
             if forward == 0:                 #I'm not adding a check for if both are zero, as that should never happen
-                if right < 0:                  #this is all the calculation for the amount of radians that the robot needs to turn
-                    radians = 1.57079 * d["direction"][direction]
                 if right > 0:
-                    radians = 1.57079 * d["direction"][direction]
+                    radians = -math.pi/2
+                    turn_direction = "right" #All these define the direction that the wheel must turn, which calls upon a dictionary to determine if the right and left wheels should spin forward or backwards
+                if right < 0:
+                    radians = math.pi/2
+                    turn_direction = "left"
             elif right == 0:
-                if forward < 0:
-                    radians = 3.14159 * d["direction"][direction]
                 if forward > 0:
-                    radians = 3.14159 * d["direction"][direction]
+                    radians = 0
+                    turn_direcion = "forward"
+                if forward < 0:
+                    radians = math.pi
+                    turn_direction = "right"
             else:
-                radians = (math.atan(right/forward))
-                if forward < 0 and right < 0:
-                    radians -= math.pi * d["direction"][direction]
-                if forward < 0 and right > 0:
-                    radians += math.pi * d["direction"][direction]
+                radians = abs((math.atan2(-right, forward))) #THIS IS IMPORTANT: Since i can't seem to remember how this works I'm explaining it here. Arctan by default supplies the 1st and 4th quadrants, however in order to get the full range of motion i need it all in either the 1st and 2nd or the 3rd and 4th (Arctan2!!!). I just use absolute value to turn all numbers into the 1st and 2nd quadrant, then i use turn_direction to determine where it should spin. Forward in this case signifies a positive shift along the x-axis, while right signifies a negative shift along the y axis (this is why the formula uses -right, effectively turning right into left)
+                if right > 0:
+                    turn_direction = "right"
+                if right < 0:
+                    turn_direction = "left"
             lengthOfArc = 4.5518 * radians          #10 inches is the diameter between wheels of the robot, 5 inches is the radius   #Changed to 4.5518 as it seems to be more accurate, possibly because the back motors are pushing it forward as well.
             Turns = lengthOfArc/10.9        #10.99 is the circumference of the wheels
             degree = Turns * 360
+
             if degree != 0:
-                self.BackRightPidThread = Thread(self.BackRightPid, (degree * d["right"][MoveToDirection],))
-                self.FrontLeftPidThread = Thread(self.FrontLeftPid, (degree * d["left"][MoveToDirection],))
-                self.FrontRightPidThread = Thread(self.FrontRightPid, (degree * d["right"][MoveToDirection],))
-                self.BackLeftPid(degree * d["left"][MoveToDirection])
+                self.BackRightPidThread = Thread(self.BackRightPid, (degree * d["right"][turn_direction],))
+                self.FrontLeftPidThread = Thread(self.FrontLeftPid, (degree * d["left"][turn_direction],))
+                self.FrontRightPidThread = Thread(self.FrontRightPid, (degree * d["right"][turn_direction],))
+                self.BackLeftPid(degree * d["left"][turn_direction])
 
             Turns = (length*12)/12.2          #length is multiplied by 12 so that it is defined in inches rather than feet; the 12.566 is also in inches so multiplying it by 12 cancels them into just turns of the wheel
             degree = Turns * 360
@@ -281,15 +295,22 @@ class Motors:
 
             #self.MotorsDSpin(degree * d["direction"][direction], 100, "forward")      #The direction here should always be forward since it is facing its target
 
-        def Turn(self, clockdirection, degrees, speed):
+        def Turn(self, clockdirection, degrees):
             ArcPercentage = degrees/360                   #Percentage of the total arc length of the robot spinning 360 degrees
             length = ArcPercentage*28.6
-            degree_amount = (length/12.566)*360
-            self.back_left.spin_to_position(-degree_amount * d[clockdirection], DEGREES, speed, PERCENT, False)
-            self.front_left.spin_to_position(-degree_amount * d[clockdirection], DEGREES, speed, PERCENT, False)
-            self.front_right.spin_to_position(degree_amount * d[clockdirection], DEGREES, speed, PERCENT, False)
-            self.back_right.spin_to_position(degree_amount  * d[clockdirection], DEGREES, speed, PERCENT, True)
-        
+            degree_amount = (length/12.2)*360
+            right_degree_amount = degree_amount
+            if clockdirection == "clockwise":
+                left_degree_amount = degree_amount * 1
+                right_degree_amount = degree_amount * -1
+            else:
+                left_degree_amount = degree_amount * -1
+                right_degree_amount = degree_amount * 1
+            self.FrontRightPidThread = Thread(self.FrontRightPid, (right_degree_amount,))
+            self.FrontLeftPidThread = Thread(self.FrontLeftPid, (left_degree_amount,))
+            self.BackLeftPidThread = Thread(self.BackLeftPid, (left_degree_amount,))
+            self.BackRightPid(right_degree_amount)
+    
         def Drive(self):
             brain.screen.print("DriveThread")
             
@@ -397,12 +418,19 @@ class Game():
         def autonomous(self):
             brain.screen.clear_screen()
             brain.screen.print("auton code")
+            i = 0
             #auton code
             drive_train.DisableWings()
-            #drive_train.MoveTo(1, 0, "forward")
-            drive_train.MoveTo(-1, 0, "forward")
-            #drive_train.Turn("clockwise", 30, 100)
-            #drive_train.MoveTo(3.92, 0, "normal")
+            """self.BackRightPidThread = Thread(drive_train.BackRightPid, (-280,))
+            drive_train.FrontRightPid(-280)
+            drive_train.FrontRightPid(20)
+            while i <= 44:
+                i += 1
+                drive_train.SpinPuncher()
+                drive_train.LeftMotorsDSpin(-10, 100, "back")
+                drive_train.RightMotorsDSpin(6, 100, "back")
+                wait(.2, SECONDS)"""
+            drive_train.Turn("clockwise", 90)
 
         def pre_autonomous(self):
             brain.screen.clear_screen()
