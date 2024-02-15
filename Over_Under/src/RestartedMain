@@ -32,18 +32,13 @@ move_direction["drive_backward"]["right_side"] = -1
 
 
 
-#start of functions
+#defining functions
 class drive_train_class():
         def __init__(self):
             self.back_left=Motor(Ports.PORT20, GearSetting.RATIO_18_1, False)
             self.front_left=Motor(Ports.PORT19, GearSetting.RATIO_18_1, False)
             self.back_right=Motor(Ports.PORT11, GearSetting.RATIO_18_1, True)
             self.front_right=Motor(Ports.PORT14, GearSetting.RATIO_18_1, True)
-            self.right_puncher=Motor(Ports.PORT4, GearSetting.RATIO_36_1, False)
-            self.left_puncher=Motor(Ports.PORT7, GearSetting.RATIO_36_1, True)
-            self.left_wing=DigitalOut(brain.three_wire_port.h)
-            self.right_wing=DigitalOut(brain.three_wire_port.g)
-            self.puncher_group = MotorGroup(self.right_puncher, self.left_puncher)
 
         def left_motor_vspin(self, velocity):
             self.front_left.spin(FORWARD, velocity, PERCENT)
@@ -53,11 +48,33 @@ class drive_train_class():
             self.front_right.spin(FORWARD, velocity, PERCENT)
             self.back_right.spin(FORWARD, velocity, PERCENT)
         
+        def left_motor_dspin(self, degrees, velocity):
+            self.front_left.set_position(0, DEGREES)
+            self.back_left.set_position(0, DEGREES)
+            self.front_left.spin_to_position(degrees, DEGREES, velocity, PERCENT, False)
+            self.back_left.spin_to_position(degrees, DEGREES, velocity, PERCENT, True)
+
+        def right_motor_dspin(self, degrees, velocity):
+            self.front_right.set_position(0, DEGREES)
+            self.back_right.set_position(0, DEGREES)
+            self.front_right.spin_to_position(degrees, DEGREES, velocity, PERCENT, False)
+            self.back_right.spin_to_position(degrees, DEGREES, velocity, PERCENT, True)
+
+        def motors_dspin(self, degrees, velocity):
+            self.right_motor_dspin_thread = Thread(self.right_motor_dspin, (degrees, velocity,))
+            self.left_motor_dspin(degrees, velocity)
+
         def motors_brake(self):
             self.front_left.stop(BRAKE)
             self.back_left.stop(BRAKE)
             self.front_right.stop(BRAKE)
             self.back_right.stop(BRAKE)
+
+        def MotorsStop(self):
+            self.front_left.stop()
+            self.back_left.stop()
+            self.front_right.stop()
+            self.back_right.stop()
 
         def drive(self):
             global speed
@@ -78,8 +95,27 @@ class drive_train_class():
                     speed = 1
                 wait(.75, SECONDS)
 
-class auto_move():
-        def move_to(self, forward, right, time_limit):
+
+
+
+class auto_move_class():
+        def turn(self, degrees, clockdirection):
+            if clockdirection == "clockwise":
+                turn_direction = "turn_right"
+            else:
+                turn_direction = "turn_left"
+            
+            radians = degrees * 0.017453292519
+            length_of_arc = 4.5518 * radians          #10 inches is the diameter between wheels of the robot, 5 inches is the radius   #Changed to 4.5518 as it seems to be more accurate, possibly because the back motors are pushing it forward as well.
+            turns = length_of_arc/10.9        #10.99 is the circumference of the wheels
+            degree = turns * 360
+
+            self.back_right_controller_thread = Thread(self.back_right_controller, (degree * move_direction[turn_direction]["right_side"],))
+            self.front_left_controller_thread = Thread(self.front_left_controller, (degree * move_direction[turn_direction]["left_side"],))
+            self.front_right_controller_thread = Thread(self.front_right_controller, (degree * move_direction[turn_direction]["right_side"],))
+            self.back_left_controller(degree * move_direction[turn_direction]["left_side"],)
+
+        def move_to(self, forward, right,):
             turn_direction = "drive_forward"
             
             length = math.sqrt((forward ** 2) + (right ** 2))
@@ -87,7 +123,7 @@ class auto_move():
             radians = 0
             if forward == 0:                 #I'm not adding a check for if both are zero, as that should never happen
                 if right > 0:
-                    radians = -math.pi/2
+                    radians = math.pi/2
                     turn_direction = "turn_right" #All these define the direction that the wheel must turn, which calls upon a dictionary to determine if the right and left wheels should spin forward or backwards
                 if right < 0:
                     radians = math.pi/2
@@ -100,7 +136,7 @@ class auto_move():
                     radians = math.pi
                     turn_direction = "turn_right"          
             else:
-                radians = abs((math.atan2(-right, forward))) #THIS IS IMPORTANT: Since i can't seem to remember how this works I'm explaining it here. Arctan by default supplies the 1st and 4th quadrants, however in order to get the full range of motion i need it all in either the 1st and 2nd or the 3rd and 4th (Arctan2!!!). I just use absolute value to turn all numbers into the 1st and 2nd quadrant, then i use turn_direction to determine where it should spin. A positive Forward shift in this case signifies a positive shift along the x-axis, while a positive right shift signifies a negative shift along the y axis (this is why the formula uses -right, effectively turning right into left)
+                radians = abs((math.atan2(-right, forward))) #THIS IS IMPORTANT: Since i can't seem to remember how this works I'm explaining it here. Arctan by default supplies the 1st and 4th quadrants, however in order to get the full range of motion i need it all in either the 1st and 2nd or the 3rd and 4th (Arctan2!!!). However since I only need the two quadrants, I just use absolute value of Arctan2 to turn all numbers into the 1st and 2nd quadrant, then i use turn_direction to determine where it should spin. A positive Forward shift in this case signifies a positive shift along the x-axis, while a positive right shift signifies a negative shift along the y axis (this is why the formula uses -right, effectively turning right into left)
                 if right > 0:
                     turn_direction = "turn_right"
                 if right < 0:
@@ -110,37 +146,40 @@ class auto_move():
             degree = turns * 360
 
             if degree != 0:
-                self.back_right_controller_thread = Thread(self.back_right_controller, (degree * move_direction[turn_direction]["right_side"], time_limit,))
-                self.front_left_controller_thread = Thread(self.front_left_controller, (degree * move_direction[turn_direction]["left_side"], time_limit,))
-                self.front_right_controller_thread = Thread(self.front_right_controller, (degree * move_direction[turn_direction]["right_side"], time_limit,))
-                self.back_left_controller(degree * move_direction[turn_direction]["left_side"], time_limit,)
+                self.back_right_controller_thread = Thread(self.back_right_controller, (degree * move_direction[turn_direction]["right_side"],))
+                self.front_left_controller_thread = Thread(self.front_left_controller, (degree * move_direction[turn_direction]["left_side"],))
+                self.front_right_controller_thread = Thread(self.front_right_controller, (degree * move_direction[turn_direction]["right_side"],))
+                self.back_left_controller(degree * move_direction[turn_direction]["left_side"],)
 
             Turns = (length*12)/12.2          #length is multiplied by 12 so that it is defined in inches rather than feet; the 12.566 is also in inches so multiplying it by 12 cancels them into just turns of the wheel
             degree = Turns * 360
-            self.back_right_controller_thread = Thread(self.back_right_controller, (degree, time_limit,))
-            self.front_left_controller_thread = Thread(self.front_left_controller, (degree, time_limit,))
-            self.front_right_controller_thread = Thread(self.front_right_controller, (degree, time_limit,))
-            self.back_left_controller(degree, time_limit,)
+            self.back_right_controller_thread = Thread(self.back_right_controller, (degree,))
+            self.front_left_controller_thread = Thread(self.front_left_controller, (degree,))
+            self.front_right_controller_thread = Thread(self.front_right_controller, (degree,))
+            self.back_left_controller(degree,)
 
-        def front_right_controller(self, degree, time_limit):
+
+        def front_right_controller(self, degree):
+            brain.screen.set_cursor(6,25)
+            brain.screen.print("front_right 1 out of 3")
             #For all parts of this, velocity is in degrees/s and acceleration is in degrees/s^2
-            drive_train.front_right.set_position(0)
+            drive_train.front_right.set_position(0, DEGREES)
             error = degree - drive_train.front_right.position()
-            initial_seconds = time.time()
+            initial_seconds = (Timer().system())/1000                #Number is defaulted to MSEC, so I divided by 1000 to convert to seconds
             acceleration = 100                                    
             velocity = 0
             initial_error = degree
-            if abs(error/7.20) > 100: #100 is temporary for max acceleration that I want. 7.2 comes from 720 degrees in two rotations, divided by 100
+            if abs(error/3.6) > 420: #420 is temporary for max acceleration that I want. 3.6 comes from 360 degrees in one rotation, divided by 100
                 if error > 0:
-                    acceleration = 100
+                    acceleration = 420  * 1.03
                 if error < 0:
-                    acceleration = -100
+                    acceleration = -420  * 1.03
             else: 
-                acceleration = error/7.20
+                acceleration = (error/3.6)  * 1.03
             #First third of movement: acceleration
-            while (error/initial_error > .55) and (drive_train.front_left.velocity(RPM) < 197.5):    #197.5 is the lowest max speed of our robot (it's not a constant number :/)
+            while (error/initial_error > .55) and (abs(drive_train.front_right.velocity(RPM)) < 197.5):    #197.5 is the lowest max speed of our robot (it's not a constant number :/)
                 error = degree - drive_train.front_right.position()
-                change_in_time = time.time() - initial_seconds
+                change_in_time = (Timer().system())/1000 - initial_seconds
                 velocity = .5*acceleration*(change_in_time**2)
                 if velocity >= 0:
                     direction = FORWARD
@@ -149,33 +188,283 @@ class auto_move():
                 drive_train.front_right.spin(direction, abs(velocity) * (1/6), RPM)  #1/6 is the conversion from degrees/s to rotations/minute
 
             #Second third of movement: constant speed
-            time_needed_to_stop = velocity/acceleration
-            time_left = (error*2)/velocity
-            while time_needed_to_stop < time_left:
-                time_left = (error*2)/velocity
+            brain.screen.set_cursor(7,25)
+            brain.screen.print("front_right 2 out of 3")
+            required_acceleration = (-(velocity**2))/(2*error)
+            while abs(required_acceleration) < abs(acceleration):
                 error = degree - drive_train.front_right.position()
+                required_acceleration = (-(velocity**2))/(2*error)
                 if velocity >= 0:
                     direction = FORWARD
                 else:
                     direction = REVERSE
-                drive_train.front_right.spin(direction, velocity * (1/6), RPM)
+                drive_train.front_right.spin(direction, abs(velocity) * (1/6), RPM)
 
             #Third third of movement: deceleration
-            
+            brain.screen.set_cursor(8,25)
+            brain.screen.print("front_right 3 out of 3")
+            previous_time = Timer().system()
+            while abs(error) > 6:                    #6 degrees is the margin of error. If I find that these functions aren't stopping, I probably need a bigger number here
+                #the next few lines will repeatedly check to see what acceleration is required to stop the robot efficiently, then make that the new acceleration
+                error = degree - drive_train.front_right.position()
+                acceleration = (-(velocity**2))/(2*error)             #I'm worried about what would happen with a negative velocity and a positive error here
+                change_in_time = Timer().system()-previous_time
+                previous_time = Timer().system()
+                velocity += (acceleration*(change_in_time/1000))
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.front_right.spin(direction, abs(velocity) * (1/6), RPM)
+                wait(.1, SECONDS)
+            drive_train.front_right.stop(BRAKE)
+            brain.screen.set_cursor(9,25)
+            brain.screen.print("front_right motor braked")
 
-        def front_left_controller(self, degree, time_limit):
+
+        def front_left_controller(self, degree):
+            brain.screen.set_cursor(1,1)
+            brain.screen.print("front_left 1 out of 3")
+            #For all parts of this, velocity is in degrees/s and acceleration is in degrees/s^2
+            drive_train.front_left.set_position(0, DEGREES)
+            error = degree - drive_train.front_left.position()
+            initial_seconds = (Timer().system())/1000                #Number is defaulted to MSEC, so I divided by 1000 to convert to seconds
+            acceleration = 100                                    
+            velocity = 0
+            initial_error = degree
+            if abs(error/3.6) > 420: #100 is temporary for max acceleration that I want. 3.6 comes from 360 degrees in one rotation, divided by 100
+                if error > 0:
+                    acceleration = 420
+                if error < 0:
+                    acceleration = -420
+            else: 
+                acceleration = error/3.6
+
+            #First third of movement: acceleration
+            while (error/initial_error > .55) and (abs(drive_train.front_left.velocity(RPM)) < 197.5):    #197.5 is the lowest max speed of our robot (it's not a constant number :/)
+                error = degree - drive_train.front_left.position()
+                change_in_time = (Timer().system())/1000 - initial_seconds
+                velocity = .5*acceleration*(change_in_time**2)
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.front_left.spin(direction, abs(velocity) * (1/6), RPM)  #1/6 is the conversion from degrees/s to rotations/minute
+
+            #Second third of movement: constant speed
+            brain.screen.set_cursor(2,1)
+            brain.screen.print("front_left 2 out of 3")
+            required_acceleration = (-(velocity**2))/(2*error)
+            while abs(required_acceleration) < abs(acceleration):
+                error = degree - drive_train.front_left.position()
+                required_acceleration = (-(velocity**2))/(2*error)
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.front_left.spin(direction, abs(velocity) * (1/6), RPM)
+
+            #Third third of movement: deceleration
+            brain.screen.set_cursor(3,1)
+            brain.screen.print("front_left 3 out of 3")
+            previous_time = Timer().system()
+            while abs(error) > 6:                    #6 degrees is the margin of error. If I find that these functions aren't stopping, I probably need a bigger number here
+                #the next few lines will repeatedly check to see what acceleration is required to stop the robot efficiently, then make that the new acceleration
+                error = degree - drive_train.front_left.position()
+                acceleration = (-(velocity**2))/(2*error)             #I'm worried about what would happen with a negative velocity and a positive error here
+                change_in_time = Timer().system()-previous_time
+                previous_time = Timer().system()
+                velocity += (acceleration*(change_in_time/1000))
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.front_left.spin(direction, abs(velocity) * (1/6), RPM)
+                wait(.1, SECONDS)
+            drive_train.front_left.stop(BRAKE)
+            brain.screen.set_cursor(4,1)
+            brain.screen.print("front_left")
+
+
+        def back_right_controller(self, degree):
+            brain.screen.set_cursor(6,1)
+            brain.screen.print("back_right 1 out of 3")
+            #For all parts of this, velocity is in degrees/s and acceleration is in degrees/s^2
+            drive_train.back_right.set_position(0, DEGREES)
+            error = degree - drive_train.back_right.position()
+            initial_seconds = (Timer().system())/1000                #Number is defaulted to MSEC, so I divided by 1000 to convert to seconds
+            acceleration = 100                                    
+            velocity = 0
+            initial_error = degree
+            if abs(error/3.6) > 420: #100 is temporary for max acceleration that I want. 3.6 comes from 360 degrees in one rotation, divided by 100
+                if error > 0:
+                    acceleration = 420  * 1.03
+                if error < 0:
+                    acceleration = -420 * 1.03
+            else: 
+                acceleration = (error/3.6)  * 1.03
+            #First third of movement: acceleration
+            while (error/initial_error > .55) and (abs(drive_train.back_right.velocity(RPM)) < 197.5):    #197.5 is the lowest max speed of our robot (it's not a constant number :/)
+                error = degree - drive_train.back_right.position()
+                change_in_time = (Timer().system())/1000 - initial_seconds
+                velocity = .5*acceleration*(change_in_time**2)
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.back_right.spin(direction, abs(velocity) * (1/6), RPM)  #1/6 is the conversion from degrees/s to rotations/minute
+
+            #Second third of movement: constant speed
+            brain.screen.set_cursor(7,1)
+            brain.screen.print("back_right 2 out of 3")
+            required_acceleration = (-(velocity**2))/(2*error)
+            while abs(required_acceleration) < abs(acceleration):
+                error = degree - drive_train.back_right.position()
+                required_acceleration = (-(velocity**2))/(2*error)
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.back_right.spin(direction, abs(velocity) * (1/6), RPM)
+
+            #Third third of movement: deceleration
+            brain.screen.set_cursor(8,1)
+            brain.screen.print("back_right 3 out of 3")
+            previous_time = Timer().system()
+            while abs(error) > 6:                    #6 degrees is the margin of error. If I find that these functions aren't stopping, I probably need a bigger number here
+                #the next few lines will repeatedly check to see what acceleration is required to stop the robot efficiently, then make that the new acceleration
+                error = degree - drive_train.back_right.position()
+                acceleration = (-(velocity**2))/(2*error)             #I'm worried about what would happen with a negative velocity and a positive error here
+                change_in_time = Timer().system()-previous_time
+                previous_time = Timer().system()
+                velocity += (acceleration*(change_in_time/1000))
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.back_right.spin(direction, abs(velocity) * (1/6), RPM)
+                wait(.1, SECONDS)
+            drive_train.back_right.stop(BRAKE)
+            brain.screen.set_cursor(9,1)
+            brain.screen.print("back_right motor braked")
+
+
+        def back_left_controller(self, degree):
+            brain.screen.set_cursor(1, 25)
+            brain.screen.print("back_left 1 out of 3")
+            #For all parts of this, velocity is in degrees/s and acceleration is in degrees/s^2
+            drive_train.back_left.set_position(0, DEGREES)
+            error = degree - drive_train.back_left.position()
+            initial_seconds = (Timer().system())/1000                #Number is defaulted to MSEC, so I divided by 1000 to convert to seconds
+            acceleration = 100                                    
+            velocity = 0
+            initial_error = degree
+            if abs(error/3.6) > 420: #100 is temporary for max acceleration that I want. 3.6 comes from 360 degrees in one rotation, divided by 100
+                if error > 0:
+                    acceleration = 420
+                if error < 0:
+                    acceleration = -420
+            else: 
+                acceleration = error/3.6
+            #First third of movement: acceleration
+            while (error/initial_error > .55) and (abs(drive_train.back_left.velocity(RPM)) < 197.5):    #197.5 is the lowest max speed of our robot (it's not a constant number :/)
+                error = degree - drive_train.back_left.position()
+                change_in_time = (Timer().system())/1000 - initial_seconds
+                velocity = .5*acceleration*(change_in_time**2)
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.back_left.spin(direction, abs(velocity) * (1/6), RPM)  #1/6 is the conversion from degrees/s to rotations/minute
+
+            #Second third of movement: constant speed
+            brain.screen.set_cursor(2,25)
+            brain.screen.print("back_left 2 out of 3")
+            required_acceleration = (-(velocity**2))/(2*error)
+            while abs(required_acceleration) < abs(acceleration):
+                error = degree - drive_train.back_left.position()
+                required_acceleration = (-(velocity**2))/(2*error)
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.back_left.spin(direction, abs(velocity) * (1/6), RPM)
+
+            #Third third of movement: deceleration
+            brain.screen.set_cursor(3,25)
+            brain.screen.print("back_left 3 out of 3")
+            previous_time = Timer().system()
+            while abs(error) > 6:                    #6 degrees is the margin of error. If I find that these functions aren't stopping, I probably need a bigger number here
+                #the next few lines will repeatedly check to see what acceleration is required to stop the robot efficiently, then make that the new acceleration
+                error = degree - drive_train.back_left.position()
+                acceleration = (-(velocity**2))/(2*error)             #I'm worried about what would happen with a negative velocity and a positive error here
+                change_in_time = Timer().system()-previous_time
+                previous_time = Timer().system()
+                velocity += (acceleration*(change_in_time/1000))           
+                if velocity >= 0:
+                    direction = FORWARD
+                else:
+                    direction = REVERSE
+                drive_train.back_left.spin(direction, abs(velocity) * (1/6), RPM)
+                wait(.1, SECONDS)
+            drive_train.back_left.stop(BRAKE)
+            brain.screen.set_cursor(4,25)
+            brain.screen.print("back_left motor braked")
+
+
+
+
+class puncher_class():
+        def __init__(self):
+            self.right_puncher=Motor(Ports.PORT4, GearSetting.RATIO_36_1, False)
+            self.left_puncher=Motor(Ports.PORT7, GearSetting.RATIO_36_1, True)
+            self.puncher_group = MotorGroup(self.right_puncher, self.left_puncher)
+
+        def puncher(self):
+            while True:
+                if controller1.buttonA.pressing() == True:
+                    self.spin_puncher()
+
+        def spin_puncher(self):
+            self.puncher_group.set_position(0, DEGREES)
+            self.puncher_group.spin_to_position(360, DEGREES, 100, PERCENT, True)
+
+        def AutoPuncher(self):
+            for x in range(46):
+                self.spin_puncher()
+                drive_train.motors_dspin(10, 100)
+
+
+
+
+class wings_class():
+        def __init__(self):
+            self.left_wing=DigitalOut(brain.three_wire_port.h)
+            self.right_wing=DigitalOut(brain.three_wire_port.g)
+
+        def wings(self):
+            controller1.buttonUp.pressed(self.enable_wings)
+            controller1.buttonDown.pressed(self.disable_wings)
         
-        def back_right_controller(self, degree, time_limit):
-        
-        def back_left_controller(self, degree, time_limit):
+        def enable_wings(self):
+            self.left_wing.set(True)
+            self.right_wing.set(True)
+
+        def disable_wings(self):
+            self.left_wing.set(False)
+            self.right_wing.set(False)
+
+
 
 
 class game_class():
         def user_control(self):
             brain.screen.clear_screen()
             brain.screen.print("user control code")
-            self.drive_thread = Thread(drive_train.drive)
             #User control code
+            self.drive_thread = Thread(drive_train.drive)
+            self.puncher_thread = Thread(puncher.puncher)
+            self.wings_thread = Thread(wings.wings)
             
         def autonomous(self):
             brain.screen.clear_screen()
@@ -187,9 +476,16 @@ class game_class():
             brain.screen.print("pre auton code")
 
 
+
+
 #class defining          
 drive_train = drive_train_class()
 game = game_class()
+auto_move = auto_move_class()
+puncher = puncher_class()
+wings = wings_class()
+
+
 
 
 #Main
