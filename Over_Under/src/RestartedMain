@@ -70,7 +70,7 @@ class drive_train_class():
             self.front_right.stop(BRAKE)
             self.back_right.stop(BRAKE)
 
-        def MotorsStop(self):
+        def motors_stop(self):
             self.front_left.stop()
             self.back_left.stop()
             self.front_right.stop()
